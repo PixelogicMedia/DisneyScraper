@@ -1,4 +1,5 @@
 {
+  "module": "true",
   "name": "process_url",
   "version": "1.0.0",
   "description": "Lambda function that processes URLs using Playwright",
@@ -7,7 +8,8 @@
     "start": "node app.mjs"
   },
   "dependencies": {
-    "playwright": "^1.48.2"
+    "puppeteer-core": "^24.3.0",
+    "@sparticuz/chromium": "^122.0.0"
   },
   "author": "",
   "license": "ISC"

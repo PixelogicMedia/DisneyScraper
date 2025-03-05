@@ -1,0 +1,41 @@
+{
+  "StartAt": "RetrieveSecret",
+  "States": {
+    "RetrieveSecret": {
+      "Type": "Task",
+      "Resource":  "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${RetrieveSecretsFunctionArn}"
+      },
+      "OutputPath": "$.Payload.body",
+      "Next": "IterateUrls"
+    },
+    "IterateUrls": {
+      "Type": "Map",
+      "ItemsPath": "$.url_to_query_list",
+      "Parameters": {
+        "targetUrl.$": "$$.Map.Item.Value",
+        "huge_json_data.$": "$.huge_json_data"
+      },
+      "Iterator": {
+        "StartAt": "ProcessEachUrl",
+        "States": {
+          "ProcessEachUrl": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": {
+              "FunctionName": "${ProcessUrlFunctionArn}",
+              "Payload": {
+                "url.$": "$.targetUrl",
+                "huge_json_data.$": "$.huge_json_data"
+              }
+            },
+            "End": true
+          }
+        }
+      },
+      "ResultPath": "$.urlResult",
+      "End": true
+    }
+  }
+}

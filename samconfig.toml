@@ -1,10 +1,17 @@
 version = 0.1
+
+[default]
+[default.global.parameters]
+tags= "project=pxl-am-proxy env=dev team=Media"
+[default.deploy]
+
 [default.deploy.parameters]
 stack_name = "disneyscrap"
-resolve_s3 = true
-s3_prefix = "disneyscrap"
+s3_bucket = "pxl-aws-proxy-ingest-code-ue1"
+s3_prefix = "disneyscrap/code"
 region = "us-east-1"
-confirm_changeset = true
-capabilities = "CAPABILITY_IAM"
-disable_rollback = true
+confirm_changeset = false
+capabilities = "CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND"
+disable_rollback = false
 image_repositories = []
+parameter_overrides="Environment=dev ForceEventBridge=false VpcId= Subnet= S3Bucket=pxl-aws-proxy-ingest-code-ue1 S3Prefix=disneyscrap/scrap_json"
