@@ -22,10 +22,10 @@ Parameters:
   Subnet:
     Type: List<String>
     Default: ''
-  S3Bucket:
+  BucketName:
     Type: String
     Default: ''
-  S3Prefix:
+  BucketKey:
     Type: String
     Default: ''
   
@@ -56,23 +56,50 @@ Resources:
         Variables:
           Region: !Ref AWS::Region
           SecretName: !Sub "pxl-intern-disneyscrap-${Environment}"
+          BucketName: !Ref BucketName
+          BucketKey: !Ref BucketKey
       Policies:
         - Version: '2012-10-17'
           Statement:
             - Effect: Allow
+              Action: s3:ListBucket
+              Resource: !Sub "arn:aws:s3:::${BucketName}"
+            - Effect: Allow
               Action: s3:GetObject
-              Resource: !Sub "arn:aws:s3:::${S3Bucket}/${S3Prefix}/*"
+              Resource: !Sub "arn:aws:s3:::${BucketName}/${BucketKey}"
             - Effect: Allow
               Action: secretsmanager:GetSecretValue
               Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:pxl-intern-disneyscrap-${Environment}-*"
 
-  MyStateMachine:
+  UploadToS3Function:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: upload_to_s3
+      CodeUri: functions/upload_to_s3/
+      Handler: app.handler
+      Runtime: nodejs18.x
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          Region: !Ref AWS::Region
+          BucketName: !Ref BucketName
+          BucketKey: !Ref BucketKey
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action: s3:PutObject
+              Resource: !Sub "arn:aws:s3:::${BucketName}/${BucketKey}"
+
+  DisneyScrapStateMachine:
     Type: AWS::Serverless::StateMachine
     Properties:
       DefinitionUri: statemachine/scrap.asl.json
       DefinitionSubstitutions:
         ProcessUrlFunctionArn: !GetAtt ProcessUrlFunction.Arn
         RetrieveSecretsFunctionArn: !GetAtt RetrieveSecretsFunction.Arn
+        UploadToS3FunctionArn: !GetAtt UploadToS3Function.Arn
       Policies:
         - Version: '2012-10-17'
           Statement:
@@ -82,3 +109,48 @@ Resources:
             - Effect: Allow
               Action: lambda:InvokeFunction
               Resource: !GetAtt RetrieveSecretsFunction.Arn
+            - Effect: Allow
+              Action: lambda:InvokeFunction
+              Resource: !GetAtt UploadToS3Function.Arn
+  
+  SendEmailFunction:
+      Type: AWS::Serverless::Function
+      Properties:
+        FunctionName: send_email
+        CodeUri: functions/send_email/
+        Handler: app.handler
+        Runtime: python3.8
+        Architectures:
+          - x86_64
+
+
+  # EventBridgeInvokeRole:
+  #   Type: AWS::IAM::Role
+  #   Properties:
+  #     AssumeRolePolicyDocument:
+  #       Version: '2012-10-17'
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service: events.amazonaws.com
+  #           Action: sts:AssumeRole
+  #     Policies:
+  #       - PolicyName: InvokeStateMachinePolicy
+  #         PolicyDocument:
+  #           Version: '2012-10-17'
+  #           Statement:
+  #             - Effect: Allow
+  #               Action: states:StartExecution
+  #               Resource: !GetAtt DisneyScrapStateMachine.Arn
+
+  # DisneyScrapStateMachineEvent:
+  #   Type: AWS::Events::Rule
+  #   Properties:
+  #     Name: DisneyScrapStateMachineDailyTrigger
+  #     Description: "Triggers the DisneyScrapStateMachine once per day."
+  #     ScheduleExpression: rate(1 day)
+  #     State: ENABLED
+  #     Targets:
+  #       - Arn: !Ref DisneyScrapStateMachine
+  #         Id: "DisneyScrapStateMachineTarget"
+  #         RoleArn: !GetAtt EventBridgeInvokeRole.Arn

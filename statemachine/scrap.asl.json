@@ -34,7 +34,19 @@
           }
         }
       },
-      "ResultPath": "$.urlResult",
+      "ResultPath": "$.iteratorResult",
+      "Next": "UploadToS3"
+    },
+    "UploadToS3": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${UploadToS3FunctionArn}",
+        "Payload": {
+          "huge_json_data.$": "$.huge_json_data",
+          "iteratorResult.$": "$.iteratorResult"
+        }
+      },
       "End": true
     }
   }

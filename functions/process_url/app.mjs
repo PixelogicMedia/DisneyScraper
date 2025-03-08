@@ -1,7 +1,6 @@
 import crypto from 'crypto';
 import puppeteer from 'puppeteer-core';
 import chromium from '@sparticuz/chromium';
-import { url } from 'inspector';
 
 function convertToSHA256(text) {
   return crypto.createHash('sha256').update(text, 'utf8').digest('hex');
@@ -9,7 +8,7 @@ function convertToSHA256(text) {
 
 export const handler = async (event, context) => {
   let browser = null;
-  const urlHashMap = {};
+
   console.log('Received event:', JSON.stringify(event, null, 2));
   const urlToVisit = event.url ? event.url : '';
   if (!urlToVisit) {
@@ -18,6 +17,14 @@ export const handler = async (event, context) => {
       body: JSON.stringify({ error: 'Missing URL parameter' })
     };
   }
+  const huge_json_data = event.huge_json_data ? event.huge_json_data : {};
+  
+  const prev_hash = huge_json_data && urlToVisit in huge_json_data? huge_json_data[urlToVisit] : '';
+
+  console.log('prev_hash:', prev_hash);
+
+  const updated_hash = {};
+
   console.log('Starting program...');
   try {
     browser = await puppeteer.launch({
@@ -34,7 +41,7 @@ export const handler = async (event, context) => {
     try {
       await page.goto(
         urlToVisit,
-        { waitUntil: 'load' }
+        { waitUntil: 'domcontentloaded' }
       );
     } catch (err) {
       console.error('Navigation failed:', err);
@@ -42,18 +49,18 @@ export const handler = async (event, context) => {
     await page.waitForSelector('.TabBar.Document__Tabs');
     console.log('Page loaded');
 
-    let mainTabs = await page.$$('.TabBar.Document__Tabs button');
+    let mainTabs = await page.$$('.TabBar.Document__Tabs .TabBar__tab');
     const mainTabCount = mainTabs.length;
     console.log(`Found ${mainTabCount} main tab buttons`);
 
     for (let i = 0; i < mainTabCount; i++) {
       await page.waitForSelector('.TabBar.Document__Tabs');
-      mainTabs = await page.$$('.TabBar.Document__Tabs button');
+      mainTabs = await page.$$('.TabBar.Document__Tabs .TabBar__tab');
       const mainTabButton = mainTabs[i];
       console.log(`Clicking main tab button ${i + 1}...`);
 
       await Promise.all([
-        page.waitForNavigation({ waitUntil: 'load' }).catch(() => {}),
+        page.waitForNavigation({ waitUntil: 'domcontentloaded' }).catch(() => {}),
         mainTabButton.click(),
       ]);
 
@@ -61,8 +68,11 @@ export const handler = async (event, context) => {
       console.log(`Main tab loaded: ${currUrl_Main}`);
 
       const mainContent = await page.$eval('.Document', el => el.textContent);
-      const hashMain = convertToSHA256(mainContent);
-      urlHashMap[currUrl_Main] = hashMain;
+      const new_hash_main = convertToSHA256(mainContent);
+      if (new_hash_main != prev_hash[currUrl_Main] || !prev_hash[currUrl_Main] || !prev_hash) {
+        updated_hash[currUrl_Main] = new_hash_main;
+      }
+
       await page.waitForSelector('.Document__Requirements');
 
       let subTabs = await page.$$('.Document__Requirements .Document__SubTab');
@@ -72,37 +82,32 @@ export const handler = async (event, context) => {
       for (let j = 0; j < subTabCount; j++) {
         await page.waitForSelector('.Document__Requirements .Document__SubTab');
         subTabs = await page.$$('.Document__Requirements .Document__SubTab');
-        const subTab = subTabs[j];
+        const subTabButton = subTabs[j];
         console.log(`  Clicking sub-tab ${j + 1}...`);
 
         await Promise.all([
-          page.waitForNavigation({ waitUntil: 'load' }).catch(() => {}),
-          subTab.click(),
+          page.waitForNavigation({ waitUntil: 'domcontentloaded' }).catch(() => {}),
+          subTabButton.click(),
         ]);
 
         const currUrl_subtab = page.url();
         console.log(`  Sub-tab loaded: ${currUrl_subtab}`);
 
         const subContent = await page.$eval('.Document__Requirements', el => el.textContent);
-        const hash_subcontent = convertToSHA256(subContent);
-        console.log(`  Hash of sub-tab ${j + 1}: ${hash_subcontent}\n`);
-        urlHashMap[currUrl_subtab] = hash_subcontent;
+        const new_hash_subcontent = convertToSHA256(subContent);
+        if (new_hash_subcontent != prev_hash[currUrl_subtab] || !prev_hash[currUrl_subtab] || !prev_hash) {
+          updated_hash[currUrl_subtab] = new_hash_subcontent;
+        }
+      
+        console.log(`  Hash of sub-tab ${j + 1}: ${new_hash_subcontent}\n`);
       }
-
-      await Promise.all([
-        page.waitForNavigation({ waitUntil: 'load' }),
-        page.goto(
-          urlToVisit,
-          { waitUntil: 'load' }
-        ),
-      ]);
-      console.log('Returned to main page:', page.url());
-      await page.waitForSelector('.TabBar.Document__Tabs');
     }
     await page.close();
+
+    
     return {
       statusCode: 200,
-      body: JSON.stringify(urlHashMap)
+      body: {'main_url': urlToVisit, 'updated_hash': updated_hash}
     };
   } catch (error) {
     console.error('Error:', error);
