@@ -47,6 +47,18 @@
           "iteratorResult.$": "$.iteratorResult"
         }
       },
+      "OutputPath": "$.Payload.body",
+      "Next" : "SendEmail"
+    },
+    "SendEmail": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${SendEmailFunctionArn}",
+        "Payload": {
+          "Updated_List.$": "$"
+        }
+      },
       "End": true
     }
   }

@@ -5,19 +5,18 @@ export const handler = async (event, context) => {
     const huge_json_data = event['huge_json_data']
     const iterator_list = event['iteratorResult']
 
-    function update_huge_json_data(huge_json_data,main_url,updated_hash) {
-        if (!(main_url in huge_json_data)) {
-            huge_json_data[main_url] = updated_hash;
+    function update_huge_json_data(data,main_url,updated_hash) {
+        if (!(main_url in data)) {
+            data[main_url] = updated_hash;
             console.log('Added new URL:', main_url);
         }else {
             for (const key in updated_hash) {
-                if (huge_json_data[main_url][key] !== updated_hash[key]) {
-                    huge_json_data[main_url][key] = updated_hash[key];
+                if (data[main_url][key] !== updated_hash[key]) {
+                    data[main_url][key] = updated_hash[key];
                     console.log('Updated key:', key);
                 }
             }
         }
-        return huge_json_data;
     }
 
     const updated_data = {};
@@ -29,8 +28,10 @@ export const handler = async (event, context) => {
         console.log('main_url:', main_url)
         console.log('updated_hash:', updated_hash)
         updated_data[main_url] = updated_hash;
-        huge_json_data = update_huge_json_data(huge_json_data,main_url,updated_hash);
+        update_huge_json_data(huge_json_data, main_url, updated_hash);
     }
+
+    console.log('Final updated_huge_json_data:', huge_json_data);
 
     const region = process.env.Region || '';
     const bucket_name = process.env.BucketName || '';
@@ -60,6 +61,6 @@ export const handler = async (event, context) => {
 
     return {
         statusCode: 200,
-        body: huge_json_data
+        body: updated_data
     };
 }
