@@ -28,8 +28,14 @@ Parameters:
   BucketKey:
     Type: String
     Default: ''
+  SecretName:
+    Type: String
+    Default: ''
+  MapMigrationTag:
+    Description: Tag value for map-migrated key to be applied to resources.
+    Type: String
+    Default: mig1TE3UHEWRS
   
-
 Resources:
   ProcessUrlFunction:
     Type: AWS::Serverless::Function
@@ -42,6 +48,7 @@ Resources:
         - x86_64
       Timeout: 30
       MemorySize: 1600
+      Role: !GetAtt LambdaFunctionRole.Arn
 
   RetrieveSecretsFunction:
     Type: AWS::Serverless::Function
@@ -55,21 +62,11 @@ Resources:
       Environment:
         Variables:
           Region: !Ref AWS::Region
-          SecretName: !Sub "pxl-intern-disneyscrap-${Environment}"
+          SecretName: !Sub "${SecretName}-${Environment}"
           BucketName: !Ref BucketName
           BucketKey: !Ref BucketKey
-      Policies:
-        - Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Action: s3:ListBucket
-              Resource: !Sub "arn:aws:s3:::${BucketName}"
-            - Effect: Allow
-              Action: s3:GetObject
-              Resource: !Sub "arn:aws:s3:::${BucketName}/${BucketKey}"
-            - Effect: Allow
-              Action: secretsmanager:GetSecretValue
-              Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:pxl-intern-disneyscrap-${Environment}-*"
+      Role: !GetAtt LambdaFunctionRole.Arn
+
 
   UploadToS3Function:
     Type: AWS::Serverless::Function
@@ -85,12 +82,8 @@ Resources:
           Region: !Ref AWS::Region
           BucketName: !Ref BucketName
           BucketKey: !Ref BucketKey
-      Policies:
-        - Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Action: s3:PutObject
-              Resource: !Sub "arn:aws:s3:::${BucketName}/${BucketKey}"
+      Role: !GetAtt LambdaFunctionRole.Arn
+      
 
   DisneyScrapStateMachine:
     Type: AWS::Serverless::StateMachine
@@ -101,21 +94,7 @@ Resources:
         RetrieveSecretsFunctionArn: !GetAtt RetrieveSecretsFunction.Arn
         UploadToS3FunctionArn: !GetAtt UploadToS3Function.Arn
         SendEmailFunctionArn: !GetAtt SendEmailFunction.Arn
-      Policies:
-        - Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Action: lambda:InvokeFunction
-              Resource: !GetAtt ProcessUrlFunction.Arn
-            - Effect: Allow
-              Action: lambda:InvokeFunction
-              Resource: !GetAtt RetrieveSecretsFunction.Arn
-            - Effect: Allow
-              Action: lambda:InvokeFunction
-              Resource: !GetAtt UploadToS3Function.Arn
-            - Effect: Allow
-              Action: lambda:InvokeFunction
-              Resource: !GetAtt SendEmailFunction.Arn
+      Role: !GetAtt StateMachineRole.Arn
   
   SendEmailFunction:
       Type: AWS::Serverless::Function
@@ -126,9 +105,120 @@ Resources:
         Runtime: python3.8
         Architectures:
           - x86_64
+        Environment:
+          Variables:
+            Region: !Ref AWS::Region
+            SECRET_NAME: !Ref SecretName
+        Role:
+          !GetAtt LambdaFunctionRole.Arn
+
+
+  LambdaFunctionRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: !Sub ${AWS::StackName}-${AWS::Region}-lambda-role
+        Tags:
+          - Key: map-migrated
+            Value: !Ref MapMigrationTag
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+              Action:
+                - sts:AssumeRole
+        Path: /
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole 
+          - !Ref LogPolicy
+          - !Ref S3Policy
+          - !Ref SecretPolicy
+
+  SecretPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub ${AWS::StackName}-${AWS::Region}-secret-policy
+      Path: /
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource:  !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${SecretName}-${Environment}-*"
+
+  S3Policy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub ${AWS::StackName}-${AWS::Region}-s3-policy
+      Path: /
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:ListBucket
+            Resource:
+              !Sub "arn:aws:s3:::${BucketName}"
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+            Resource:
+              !Sub "arn:aws:s3:::${BucketName}/${BucketKey}"
+
+
+  LogPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub ${AWS::StackName}-${AWS::Region}-log-policy
+      Path: /
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::StackName}*
+
+  StateMachineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${AWS::StackName}-${AWS::Region}-sm-role
+      Tags:
+        - Key: map-migrated
+          Value: !Ref MapMigrationTag
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+          - !Ref StateMachineManagedPolicy
   
-
-
+  StateMachineManagedPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub ${AWS::StackName}-${AWS::Region}-sm-policy
+      Path: /
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - lambda:InvokeFunction
+              - states:StartExecution
+            Resource:
+              - !GetAtt ProcessUrlFunction.Arn
+              - !GetAtt RetrieveSecretsFunction.Arn
+              - !GetAtt UploadToS3Function.Arn
+              - !GetAtt SendEmailFunction.Arn
 
   # EventBridgeInvokeRole:
   #   Type: AWS::IAM::Role
@@ -153,8 +243,8 @@ Resources:
   #   Type: AWS::Events::Rule
   #   Properties:
   #     Name: DisneyScrapStateMachineDailyTrigger
-  #     Description: "Triggers the DisneyScrapStateMachine once per day."
-  #     ScheduleExpression: rate(1 day)
+  #     Description: "Triggers the DisneyScrapStateMachine once per 10 minutes."
+  #     ScheduleExpression: rate(10 minutes)
   #     State: ENABLED
   #     Targets:
   #       - Arn: !Ref DisneyScrapStateMachine

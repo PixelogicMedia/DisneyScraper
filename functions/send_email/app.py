@@ -1,52 +1,60 @@
 import os
 import json
 import boto3
-# from pxl.utils.notification import NotificationService
-
-# Initialize the S3 client outside the handler for performance
-s3 = boto3.client('s3')
+from pxl.utils.notification import NotificationService
+from pxl.utils.aws_secret import get_env_secret
 
 def handler(event, context):
     try:
-
+        secrets = get_env_secret()
+        if secrets:
+          print('secret looks like',secrets)
+        else:
+          print('we got no secrets',secrets)
         status_map = {'updated_hash':'modified', 'new_hash':'added', 'deleted_hash':'deleted'}
         updated_list = event.get("Updated_List")
-        print('Got Updated List:', updated_list)
+        print('Got Updated List:', updated_list)   
         
         html_content = "<html><body>\n"
         html_content += "<h1>Changed URLs are:</h1>\n"
         html_content += "<table border='1' cellspacing='0' cellpadding='10'>\n"
         html_content += "<tr><th>Urls</th><th>Status</th></tr>\n"
-        
+
         for main_url, sections in updated_list.items():
-            html_content += "<tr>"
-            html_content += f"<td><a href='{main_url}' target='_blank'>{main_url}</a></td>"
-            html_content += "<td></td>"
-            html_content += "</tr>\n"
-            
-            for status_key in ['new_hash','updated_hash','deleted_hash']:
-                sub_urls = sections.get(status_key, {})
+            has_suburls = False
+            sub_rows = ""
+            for status_key, sub_urls in sections.items():
                 if sub_urls:
+                    has_suburls = True
                     for sub_url in sub_urls.keys():
                         display_text = sub_url.replace(main_url, "")
                         if not display_text:
                             display_text = sub_url
-                        html_content += "<tr>"
-                        html_content += f"<td style='padding-left:40px;'><a href='{sub_url}' target='_blank'>{display_text}</a></td>"
-                        html_content += f"<td>{status_map.get(status_key, status_key)}</td>"
-                        html_content += "</tr>\n"
-        
+                        sub_rows += "<tr>"
+                        sub_rows += f"<td style='padding-left:40px;'><a href='{sub_url}' target='_blank'>{display_text}</a></td>"
+                        sub_rows += f"<td>{status_map.get(status_key,status_key)}</td>"
+                        sub_rows += "</tr>\n"
+     
+            main_status = "" if has_suburls else "not changed"       
+            html_content += "<tr>"
+            html_content += f"<td><a href='{main_url}' target='_blank'>{main_url}</a></td>"
+            html_content += f"<td>{main_status}</td>"
+            html_content += "</tr>\n"
+            
+            html_content += sub_rows
+
         html_content += "</table>\n"
         html_content += "</body></html>"
         
-        with open("output.html", "w") as file:
-            file.write(html_content)
-        print("HTML output saved to output.html")
+        # with open("output.html", "w") as file:
+        #     file.write(html_content)
+        # print("HTML output saved to output.html")
 
         # secret_name = os.environ.get("SECRET_NAME")
         # print(f"Secret Name: {secret_name}")
         # media_tools_secret_name = os.environ.get("MEDIATOOLS_SECRET_NAME")
         # print(f"Media Secret Name: {media_tools_secret_name}")
+  
         # ns = NotificationService()
         # try:
         #     ns.send_notification("lixing.chen@pixelogicmedia.com", "Disney MediaSpecs Updated Notification", html_content)
@@ -60,21 +68,24 @@ def handler(event, context):
         }
     
     except Exception as e:
-        raise e
-    
+        error_message = f"An error occurred: {str(e)}"
+        print(error_message)
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": error_message})
+        }
 
 
 if __name__ == '__main__':
     # Create a sample event with your expected data structure
     sample_event = {
-    "Updated_List": {
+        "Updated_List": {
         "https://mediatechspecs.disney.com/localization/audio/localized-audio": {
           "updated_hash": {
-            "https://mediatechspecs.disney.com/localization/audio/localized-audio?tab=loudness-standards": "fdc46f46c3de74841c4eaa3847baad369a90a8422837b743387466d62258a82b"
           },
           "new_hash": {},
           "deleted_hash": {
-            "https://mediatechspecs.disney.com/localization/audio/localized-audio?tab=loudness-standards&spec=666": "fdc46f46c3de74841c4eaa3847baad369a90a8422837b743387466d62258a82b777"
+      
           }
         },
         "https://mediatechspecs.disney.com/theatrical/audio-theatrical/audio_spec_theatrical_tha": {
@@ -105,7 +116,8 @@ if __name__ == '__main__':
           "deleted_hash": {}
         }
       }
-  }
+      
+     }
     
     context = {}
     response = handler(sample_event, context)

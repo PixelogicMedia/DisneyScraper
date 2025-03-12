@@ -1,37 +1,61 @@
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
 export const handler = async (event, context) => {
-    console.log('Received event:', JSON.stringify(event, null, 2));
     const huge_json_data = event['huge_json_data']
     const iterator_list = event['iteratorResult']
+    const huge_json_data_for_s3 = JSON.parse(JSON.stringify(huge_json_data));
 
-    function update_huge_json_data(data,main_url,updated_hash) {
-        if (!(main_url in data)) {
-            data[main_url] = updated_hash;
+    function update_huge_json_data(huge_json_data_for_s3,main_url,updated_hash) {
+
+        for (const key in updated_hash) {
+            if (huge_json_data_for_s3[main_url][key] !== updated_hash[key]) {
+                huge_json_data_for_s3[main_url][key] = updated_hash[key];
+                console.log('Updated key:', key);
+            }
+        }
+    }
+    
+
+    function add_new_hash_to_huge_json_data(huge_json_data_for_s3,main_url,new_hash) {
+        if (!(main_url in huge_json_data_for_s3)) {
+            huge_json_data_for_s3[main_url] = new_hash;
             console.log('Added new URL:', main_url);
-        }else {
-            for (const key in updated_hash) {
-                if (data[main_url][key] !== updated_hash[key]) {
-                    data[main_url][key] = updated_hash[key];
-                    console.log('Updated key:', key);
+        } else {
+            for (const key in new_hash) {
+                if (!(key in huge_json_data_for_s3[main_url])) {
+                    huge_json_data_for_s3[main_url][key] = new_hash[key];
+                    console.log('Added new key:', key);
                 }
             }
         }
     }
+    
+    function delete_hash_from_huge_json_data(huge_json_data_for_s3,main_url,deleted_hash) {
+        for (const key in deleted_hash) {
+            if (huge_json_data_for_s3[main_url][key] === deleted_hash[key]) {
+                delete huge_json_data_for_s3[main_url][key];
+                console.log('Deleted key:', key);
+            }
+        }
+    }
 
-    const updated_data = {};
+    const consolidated_data = {};
     for (const iterator of iterator_list) {
         const payload = iterator['Payload']; 
         const body = payload['body'];          
         const main_url = body['main_url']; 
         const updated_hash = body['updated_hash']
+        const new_hash = body['new_hash']
+        const deleted_hash = body['deleted_hash']
         console.log('main_url:', main_url)
-        console.log('updated_hash:', updated_hash)
-        updated_data[main_url] = updated_hash;
-        update_huge_json_data(huge_json_data, main_url, updated_hash);
+        consolidated_data[main_url] = {updated_hash, new_hash, deleted_hash};
+        console.log('consolidated_data updated:', consolidated_data[main_url]);
+        update_huge_json_data(huge_json_data_for_s3, main_url, updated_hash);
+        add_new_hash_to_huge_json_data(huge_json_data_for_s3, main_url, new_hash);
+        delete_hash_from_huge_json_data(huge_json_data_for_s3, main_url, deleted_hash);
     }
 
-    console.log('Final updated_huge_json_data:', huge_json_data);
+    console.log('Final updated_huge_json_data:', huge_json_data_for_s3);
 
     const region = process.env.Region || '';
     const bucket_name = process.env.BucketName || '';
@@ -40,7 +64,7 @@ export const handler = async (event, context) => {
     const s3_params = {
       Bucket: bucket_name,
       Key: bucket_key,
-      Body: JSON.stringify(huge_json_data),
+      Body: JSON.stringify(huge_json_data_for_s3),
       ContentType: "application/json"
     };
 
@@ -61,6 +85,6 @@ export const handler = async (event, context) => {
 
     return {
         statusCode: 200,
-        body: updated_data
+        body: consolidated_data
     };
-}
+};

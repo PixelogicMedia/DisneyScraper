@@ -24,6 +24,9 @@ export const handler = async (event, context) => {
   console.log('prev_hash:', prev_hash);
 
   const updated_hash = {};
+  const new_hash = {};
+  const deleted_hash = {};
+  const list_of_hash = {};
 
   console.log('Starting program...');
   try {
@@ -64,19 +67,28 @@ export const handler = async (event, context) => {
         mainTabButton.click(),
       ]);
 
-      const currUrl_Main = page.url();
-      console.log(`Main tab loaded: ${currUrl_Main}`);
-
-      const mainContent = await page.$eval('.Document', el => el.textContent);
-      const new_hash_main = convertToSHA256(mainContent);
-      if (new_hash_main != prev_hash[currUrl_Main] || !prev_hash[currUrl_Main] || !prev_hash) {
-        updated_hash[currUrl_Main] = new_hash_main;
-      }
+ 
 
       await page.waitForSelector('.Document__Requirements');
 
       let subTabs = await page.$$('.Document__Requirements .Document__SubTab');
       const subTabCount = subTabs.length;
+      if (!subTabCount){
+        const currUrl_Main = page.url();
+        console.log(`Main tab loaded: ${currUrl_Main} and doesnt have a subcontent`);
+  
+        const mainContent = await page.$eval('.Document', el => el.textContent);
+        const new_hash_main = convertToSHA256(mainContent);
+  
+        list_of_hash[currUrl_Main] = new_hash_main;
+        if ( !(prev_hash) || !(prev_hash[currUrl_Main]) ) {
+          new_hash[currUrl_Main] = new_hash_main;
+          console.log('new_hash updated:', new_hash);
+        } else if (new_hash_main != prev_hash[currUrl_Main] ) {
+          updated_hash[currUrl_Main] = new_hash_main;
+          console.log('updated_hash updated:', updated_hash);
+        }
+      }
       console.log(`Found ${subTabCount} sub-tabs in main tab ${i + 1}`);
 
       for (let j = 0; j < subTabCount; j++) {
@@ -95,19 +107,30 @@ export const handler = async (event, context) => {
 
         const subContent = await page.$eval('.Document__Requirements', el => el.textContent);
         const new_hash_subcontent = convertToSHA256(subContent);
-        if (new_hash_subcontent != prev_hash[currUrl_subtab] || !prev_hash[currUrl_subtab] || !prev_hash) {
+        
+        list_of_hash[currUrl_subtab] = new_hash_subcontent;
+        if (!(prev_hash) || !(prev_hash[currUrl_subtab])) {
+          new_hash[currUrl_subtab] = new_hash_subcontent;
+        } else if (new_hash_subcontent != prev_hash[currUrl_subtab]) {
           updated_hash[currUrl_subtab] = new_hash_subcontent;
         }
+
       
         console.log(`  Hash of sub-tab ${j + 1}: ${new_hash_subcontent}\n`);
       }
     }
     await page.close();
 
+    for (const key in prev_hash) {
+      if (!(key in list_of_hash)) {
+        deleted_hash[key] = prev_hash[key];
+      }
+    }
+
     
     return {
       statusCode: 200,
-      body: {'main_url': urlToVisit, 'updated_hash': updated_hash}
+      body: {'main_url': urlToVisit, 'updated_hash': updated_hash, 'new_hash': new_hash, 'deleted_hash': deleted_hash}
     };
   } catch (error) {
     console.error('Error:', error);

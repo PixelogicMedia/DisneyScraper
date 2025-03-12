@@ -14,4 +14,10 @@ confirm_changeset = false
 capabilities = "CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND"
 disable_rollback = false
 image_repositories = []
-parameter_overrides="Environment=dev ForceEventBridge=false VpcId= Subnet= BucketName=pxl-aws-proxy-ingest-code-ue1 BucketKey=disneyscrap/scrap_json/disneyhash.json"
+parameter_overrides = [
+    "Environment=dev", 
+    "ForceEventBridge=false",
+    "BucketName=pxl-aws-proxy-ingest-code-ue1", 
+    "BucketKey=disneyscrap/scrap_json/disneyhash.json",
+    "SecretName=pxl-intern-disneyscrap"
+]

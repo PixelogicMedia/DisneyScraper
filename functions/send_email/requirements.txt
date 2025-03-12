@@ -1,0 +1,5 @@
+setuptools
+requests
+boto3
+./functions/libs/pxl_utils-1.0.5.2-py3-none-any.whl
+# ../libs/pxl_utils-1.0.5.2-py3-none-any.whl
