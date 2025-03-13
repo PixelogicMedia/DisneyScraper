@@ -3,7 +3,7 @@
   "States": {
     "RetrieveSecret": {
       "Type": "Task",
-      "Resource":  "arn:aws:states:::lambda:invoke",
+      "Resource": "arn:aws:states:::lambda:invoke",
       "Parameters": {
         "FunctionName": "${RetrieveSecretsFunctionArn}"
       },
@@ -47,8 +47,19 @@
           "iteratorResult.$": "$.iteratorResult"
         }
       },
-      "OutputPath": "$.Payload.body",
-      "Next" : "SendEmail"
+      "ResultPath": "$.uploadResult",
+      "Next": "CheckForChanges"
+    },
+    "CheckForChanges": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.uploadResult.Payload.body.changesDetected",
+          "BooleanEquals": true,
+          "Next": "SendEmail"
+        }
+      ],
+      "Default": "NoEmailNeeded"
     },
     "SendEmail": {
       "Type": "Task",
@@ -56,10 +67,13 @@
       "Parameters": {
         "FunctionName": "${SendEmailFunctionArn}",
         "Payload": {
-          "Updated_List.$": "$"
+          "Updated_List.$": "$.uploadResult.Payload.body.consolidated_data"
         }
       },
       "End": true
+    },
+    "NoEmailNeeded": {
+      "Type": "Succeed"
     }
   }
 }

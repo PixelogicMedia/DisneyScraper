@@ -5,11 +5,14 @@ export const handler = async (event, context) => {
     const iterator_list = event['iteratorResult']
     const huge_json_data_for_s3 = JSON.parse(JSON.stringify(huge_json_data));
 
+    let changesDetected =  false;
+
     function update_huge_json_data(huge_json_data_for_s3,main_url,updated_hash) {
 
         for (const key in updated_hash) {
             if (huge_json_data_for_s3[main_url][key] !== updated_hash[key]) {
                 huge_json_data_for_s3[main_url][key] = updated_hash[key];
+                changesDetected = true;
                 console.log('Updated key:', key);
             }
         }
@@ -20,11 +23,13 @@ export const handler = async (event, context) => {
         if (!(main_url in huge_json_data_for_s3)) {
             huge_json_data_for_s3[main_url] = new_hash;
             console.log('Added new URL:', main_url);
+            changesDetected = true;
         } else {
             for (const key in new_hash) {
                 if (!(key in huge_json_data_for_s3[main_url])) {
                     huge_json_data_for_s3[main_url][key] = new_hash[key];
                     console.log('Added new key:', key);
+                    changesDetected = true;
                 }
             }
         }
@@ -35,6 +40,7 @@ export const handler = async (event, context) => {
             if (huge_json_data_for_s3[main_url][key] === deleted_hash[key]) {
                 delete huge_json_data_for_s3[main_url][key];
                 console.log('Deleted key:', key);
+                changesDetected = true;
             }
         }
     }
@@ -47,16 +53,20 @@ export const handler = async (event, context) => {
         const updated_hash = body['updated_hash']
         const new_hash = body['new_hash']
         const deleted_hash = body['deleted_hash']
+
         console.log('main_url:', main_url)
         consolidated_data[main_url] = {updated_hash, new_hash, deleted_hash};
         console.log('consolidated_data updated:', consolidated_data[main_url]);
+
         update_huge_json_data(huge_json_data_for_s3, main_url, updated_hash);
         add_new_hash_to_huge_json_data(huge_json_data_for_s3, main_url, new_hash);
         delete_hash_from_huge_json_data(huge_json_data_for_s3, main_url, deleted_hash);
     }
 
     console.log('Final updated_huge_json_data:', huge_json_data_for_s3);
+    console.log('change detected status',changesDetected);
 
+    if (changesDetected) { 
     const region = process.env.Region || '';
     const bucket_name = process.env.BucketName || '';
     const bucket_key = process.env.BucketKey || '';
@@ -82,9 +92,13 @@ export const handler = async (event, context) => {
             body: JSON.stringify({ error: 'Failed to upload JSON file' }),
         };
     }   
+};
 
     return {
         statusCode: 200,
-        body: consolidated_data
+        body: {
+            consolidated_data,
+            changesDetected
+        }
     };
 };

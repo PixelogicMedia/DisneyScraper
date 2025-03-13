@@ -108,7 +108,7 @@ Resources:
         Environment:
           Variables:
             Region: !Ref AWS::Region
-            SECRET_NAME: !Ref SecretName
+            SECRET_NAME: !Sub "${SecretName}-${Environment}"
         Role:
           !GetAtt LambdaFunctionRole.Arn
 
@@ -220,33 +220,33 @@ Resources:
               - !GetAtt UploadToS3Function.Arn
               - !GetAtt SendEmailFunction.Arn
 
-  # EventBridgeInvokeRole:
-  #   Type: AWS::IAM::Role
-  #   Properties:
-  #     AssumeRolePolicyDocument:
-  #       Version: '2012-10-17'
-  #       Statement:
-  #         - Effect: Allow
-  #           Principal:
-  #             Service: events.amazonaws.com
-  #           Action: sts:AssumeRole
-  #     Policies:
-  #       - PolicyName: InvokeStateMachinePolicy
-  #         PolicyDocument:
-  #           Version: '2012-10-17'
-  #           Statement:
-  #             - Effect: Allow
-  #               Action: states:StartExecution
-  #               Resource: !GetAtt DisneyScrapStateMachine.Arn
+  EventBridgeInvokeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeStateMachinePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: states:StartExecution
+                Resource: !GetAtt DisneyScrapStateMachine.Arn
 
-  # DisneyScrapStateMachineEvent:
-  #   Type: AWS::Events::Rule
-  #   Properties:
-  #     Name: DisneyScrapStateMachineDailyTrigger
-  #     Description: "Triggers the DisneyScrapStateMachine once per 10 minutes."
-  #     ScheduleExpression: rate(10 minutes)
-  #     State: ENABLED
-  #     Targets:
-  #       - Arn: !Ref DisneyScrapStateMachine
-  #         Id: "DisneyScrapStateMachineTarget"
-  #         RoleArn: !GetAtt EventBridgeInvokeRole.Arn
+  DisneyScrapStateMachineEvent:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: DisneyScrapStateMachineTrigger
+      Description: "Triggers the DisneyScrapStateMachine once per hour."
+      ScheduleExpression: rate(6 hours)
+      State: ENABLED
+      Targets:
+        - Arn: !Ref DisneyScrapStateMachine
+          Id: "DisneyScrapStateMachineTarget"
+          RoleArn: !GetAtt EventBridgeInvokeRole.Arn
