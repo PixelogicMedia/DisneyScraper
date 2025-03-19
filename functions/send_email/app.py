@@ -7,10 +7,6 @@ from pxl.utils.aws_secret import get_env_secret
 def handler(event, context):
     try:
         secrets = get_env_secret()
-        if secrets:
-          print('secret looks like',secrets)
-        else:
-          print('we got no secrets',secrets)
         status_map = {'updated_hash':'modified', 'new_hash':'added', 'deleted_hash':'deleted'}
         updated_list = event.get("Updated_List")
         print('Got Updated List:', updated_list)   
