@@ -45,17 +45,12 @@ def handler(event, context):
 
         html_content += "</table>\n"
         html_content += "</body></html>"
-        
-        # secret_name = os.environ.get("SECRET_NAME")
-        # print(f"Secret Name: {secret_name}")
-        # media_tools_secret_name = os.environ.get("MEDIATOOLS_SECRET_NAME")
-        # print(f"Media Secret Name: {media_tools_secret_name}")
   
-        # ns = NotificationService()
-        # try:
-        #     ns.send_notification("lixing.chen@pixelogicmedia.com", "Disney MediaSpecs Updated Notification", html_content)
-        # except Exception as e:
-        #     print(f"Failed to send email notification: {e}")
+        ns = NotificationService()
+        try:
+            ns.send_notification(secrets['email_recipients'], "Disney MediaSpecs Updated Notification", html_content)
+        except Exception as e:
+            print(f"Failed to send email notification: {e}")
         
         
         return {
