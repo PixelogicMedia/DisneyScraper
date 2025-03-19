@@ -46,10 +46,6 @@ def handler(event, context):
         html_content += "</table>\n"
         html_content += "</body></html>"
         
-        # with open("output.html", "w") as file:
-        #     file.write(html_content)
-        # print("HTML output saved to output.html")
-
         # secret_name = os.environ.get("SECRET_NAME")
         # print(f"Secret Name: {secret_name}")
         # media_tools_secret_name = os.environ.get("MEDIATOOLS_SECRET_NAME")
