@@ -1,0 +1,23 @@
+version = 0.1
+
+[default]
+[default.global.parameters]
+tags= "project=celery env=staging team=Media"
+[default.deploy]
+
+[default.deploy.parameters]
+stack_name = "disneyscrap"
+s3_bucket = "aws-pixelprint-code-staging"
+s3_prefix = "disneyscrap/code"
+region = "us-east-1"
+confirm_changeset = false
+capabilities = "CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND"
+disable_rollback = false
+image_repositories = []
+parameter_overrides = [
+    "Environment=staging", 
+    "ForceEventBridge=false",
+    "BucketName=aws-pixelprint-code-staging", 
+    "BucketKey=disneyscrap/scrap_json/disneyhash.json",
+    "SecretName=pxl-disneyscrap-staging"
+]
