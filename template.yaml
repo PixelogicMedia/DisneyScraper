@@ -47,7 +47,7 @@ Resources:
       Architectures:
         - x86_64
       Timeout: 30
-      MemorySize: 1600
+      MemorySize: 600
       Role: !GetAtt LambdaFunctionRole.Arn
 
   RetrieveSecretsFunction:
@@ -244,7 +244,7 @@ Resources:
     Properties:
       Name: DisneyScrapStateMachineTrigger
       Description: "Triggers the DisneyScrapStateMachine once per hour."
-      ScheduleExpression: rate(7 days)
+      ScheduleExpression: rate(1 hour)
       State: ENABLED
       Targets:
         - Arn: !Ref DisneyScrapStateMachine
