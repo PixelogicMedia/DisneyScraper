@@ -47,7 +47,7 @@ Resources:
       Architectures:
         - x86_64
       Timeout: 30
-      MemorySize: 600
+      MemorySize: 700
       Role: !GetAtt LambdaFunctionRole.Arn
 
   RetrieveSecretsFunction:
